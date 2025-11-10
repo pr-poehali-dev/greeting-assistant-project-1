@@ -328,6 +328,37 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             finally:
                 conn.close()
         
+        elif action == 'getStats':
+            conn = get_db_connection()
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """SELECT 
+                            (SELECT COUNT(*) FROM clients) as total_clients,
+                            (SELECT COUNT(*) FROM clients WHERE status = 'active') as active_clients,
+                            (SELECT COUNT(*) FROM messages) as total_messages,
+                            (SELECT COUNT(*) FROM messages WHERE created_at >= CURRENT_DATE) as today_messages
+                        """
+                    )
+                    stats = cur.fetchone()
+                    
+                    return {
+                        'statusCode': 200,
+                        'headers': {
+                            'Content-Type': 'application/json',
+                            'Access-Control-Allow-Origin': '*'
+                        },
+                        'body': json.dumps({'stats': {
+                            'totalClients': stats['total_clients'],
+                            'activeClients': stats['active_clients'],
+                            'totalMessages': stats['total_messages'],
+                            'todayMessages': stats['today_messages']
+                        }}),
+                        'isBase64Encoded': False
+                    }
+            finally:
+                conn.close()
+        
         elif action == 'getMessages':
             client_id = event.get('queryStringParameters', {}).get('client_id')
             if not client_id:
