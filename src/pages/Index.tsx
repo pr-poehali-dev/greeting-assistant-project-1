@@ -17,6 +17,14 @@ import {
 } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 
+declare global {
+  interface Window {
+    Telegram?: {
+      WebApp?: any;
+    };
+  }
+}
+
 type TabType = 'dashboard' | 'clients' | 'deals' | 'tasks' | 'settings';
 
 interface ClientWithChat {
@@ -53,6 +61,15 @@ const Index = () => {
     { label: 'Выполнено задач', value: '342', change: '+24%', icon: 'CheckCircle2', color: 'text-purple-600' },
     { label: 'Подключено каналов', value: '14', change: '+2', icon: 'MessageSquare', color: 'text-orange-600' },
   ];
+
+  useEffect(() => {
+    if (window.Telegram?.WebApp) {
+      window.Telegram.WebApp.ready();
+      window.Telegram.WebApp.expand();
+      window.Telegram.WebApp.setHeaderColor('#1a1a1a');
+      window.Telegram.WebApp.setBackgroundColor('#1a1a1a');
+    }
+  }, []);
 
   useEffect(() => {
     const loadClients = async () => {

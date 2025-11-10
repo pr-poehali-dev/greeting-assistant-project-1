@@ -34,13 +34,16 @@ def telegram_api_request(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
         return json.loads(response.read().decode('utf-8'))
 
 
-def send_message(chat_id: int, text: str, parse_mode: str = 'HTML'):
+def send_message(chat_id: int, text: str, parse_mode: str = 'HTML', reply_markup: Optional[Dict[str, Any]] = None):
     """Send message to Telegram chat"""
-    return telegram_api_request('sendMessage', {
+    params = {
         'chat_id': chat_id,
         'text': text,
         'parse_mode': parse_mode
-    })
+    }
+    if reply_markup:
+        params['reply_markup'] = json.dumps(reply_markup)
+    return telegram_api_request('sendMessage', params)
 
 
 def save_or_update_client(chat_id: int, username: str = None, first_name: str = None, last_name: str = None) -> int:
@@ -169,7 +172,7 @@ def get_client_info(client_id: int) -> str:
         conn.close()
 
 
-def process_command(chat_id: int, text: str, username: str, first_name: str) -> str:
+def process_command(chat_id: int, text: str, username: str, first_name: str, reply_markup: Dict[str, Any] = None) -> tuple[str, Optional[Dict[str, Any]]]:
     """Process bot commands"""
     parts = text.split(maxsplit=1)
     command = parts[0].lower()
@@ -177,7 +180,14 @@ def process_command(chat_id: int, text: str, username: str, first_name: str) -> 
     
     if command == '/start':
         save_or_update_client(chat_id, username, first_name, None)
-        return """👋 <b>Добро пожаловать в TG CRM!</b>
+        
+        keyboard = {
+            'inline_keyboard': [[
+                {'text': '📊 Открыть CRM', 'web_app': {'url': 'https://poehali.dev'}}
+            ]]
+        }
+        
+        return ("""👋 <b>Добро пожаловать в TG CRM!</b>
 
 Я помогу вам управлять клиентами прямо в Telegram.
 
@@ -189,30 +199,30 @@ def process_command(chat_id: int, text: str, username: str, first_name: str) -> 
 ✏️ /edit [ID] - редактировать клиента
 ❌ /delete [ID] - удалить клиента
 
-Просто напишите мне, и я автоматически сохраню контакт!"""
+Просто напишите мне, и я автоматически сохраню контакт!""", keyboard)
     
     elif command == '/list':
-        return get_clients_list()
+        return (get_clients_list(), None)
     
     elif command == '/info':
         if not args.isdigit():
-            return "❌ Укажите ID клиента: /info 1"
-        return get_client_info(int(args))
+            return ("❌ Укажите ID клиента: /info 1", None)
+        return (get_client_info(int(args)), None)
     
     elif command == '/add':
-        return """➕ <b>Добавить клиента</b>
+        return ("""➕ <b>Добавить клиента</b>
 
 Перешлите мне сообщение от клиента, и я автоматически добавлю его в базу!
 
 Или используйте формат:
-/save Имя Фамилия @username +79001234567"""
+/save Имя Фамилия @username +79001234567""", None)
     
     elif command == '/save':
         if not args:
-            return "❌ Укажите данные клиента"
+            return ("❌ Укажите данные клиента", None)
         
         save_or_update_client(chat_id, username, args, None)
-        return f"✅ Клиент сохранён!\n\n{args}"
+        return (f"✅ Клиент сохранён!\n\n{args}", None)
     
     else:
         save_or_update_client(chat_id, username, first_name, None)
@@ -223,7 +233,7 @@ def process_command(chat_id: int, text: str, username: str, first_name: str) -> 
             from_type='client',
             username=username or first_name
         )
-        return "✅ Сообщение сохранено!\n\nИспользуйте /list для просмотра всех клиентов"
+        return ("✅ Сообщение сохранено!\n\nИспользуйте /list для просмотра всех клиентов", None)
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -256,9 +266,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             first_name = from_user.get('first_name', 'Клиент')
             
             response_text = ""
+            reply_markup = None
             
             if text.startswith('/'):
-                response_text = process_command(chat_id, text, username, first_name)
+                response_text, reply_markup = process_command(chat_id, text, username, first_name)
             else:
                 client_id = save_or_update_client(
                     chat_id=chat_id,
@@ -279,7 +290,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             
             if TELEGRAM_BOT_TOKEN:
                 try:
-                    send_message(chat_id, response_text)
+                    send_message(chat_id, response_text, reply_markup=reply_markup)
                 except:
                     pass
             
