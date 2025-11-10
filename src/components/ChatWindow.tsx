@@ -47,36 +47,21 @@ const ChatWindow = ({ client, onClose }: ChatWindowProps) => {
 
   const fetchMessages = async () => {
     try {
-      const offset = lastUpdateIdRef.current > 0 ? lastUpdateIdRef.current + 1 : -1;
-      const response = await fetch(`${TELEGRAM_API_URL}?action=getUpdates&offset=${offset}`);
+      const response = await fetch(`${TELEGRAM_API_URL}?action=getMessages&client_id=${client.id}`);
       const data = await response.json();
 
-      if (data.ok && data.result && data.result.length > 0) {
-        const newMessages: Message[] = [];
-
-        data.result.forEach((update: any) => {
-          if (update.message && update.message.chat.id === client.chatId) {
-            const msg = update.message;
-            newMessages.push({
-              id: msg.message_id,
-              text: msg.text || '',
-              from: msg.from.is_bot ? 'user' : 'client',
-              timestamp: new Date(msg.date * 1000).toLocaleTimeString('ru-RU', {
-                hour: '2-digit',
-                minute: '2-digit',
-              }),
-              username: msg.from.username || msg.from.first_name,
-            });
-
-            if (update.update_id > lastUpdateIdRef.current) {
-              lastUpdateIdRef.current = update.update_id;
-            }
-          }
-        });
-
-        if (newMessages.length > 0) {
-          setMessages((prev) => [...prev, ...newMessages]);
-        }
+      if (data.messages) {
+        const formattedMessages: Message[] = data.messages.map((msg: any) => ({
+          id: msg.telegram_message_id || msg.id,
+          text: msg.text || '',
+          from: msg.from_type,
+          timestamp: new Date(msg.created_at).toLocaleTimeString('ru-RU', {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          username: msg.username,
+        }));
+        setMessages(formattedMessages);
       }
 
       setIsLoading(false);
@@ -90,7 +75,7 @@ const ChatWindow = ({ client, onClose }: ChatWindowProps) => {
     fetchMessages();
     const interval = setInterval(fetchMessages, 2000);
     return () => clearInterval(interval);
-  }, [client.chatId]);
+  }, [client.id]);
 
   const sendMessage = async () => {
     if (!inputText.trim() || isSending) return;
@@ -105,7 +90,7 @@ const ChatWindow = ({ client, onClose }: ChatWindowProps) => {
         },
         body: JSON.stringify({
           action: 'sendMessage',
-          chat_id: client.chatId,
+          client_id: client.id,
           text: inputText,
         }),
       });

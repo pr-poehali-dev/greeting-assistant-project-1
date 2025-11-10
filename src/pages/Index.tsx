@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ChatWindow from '@/components/ChatWindow';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,10 +30,14 @@ interface ClientWithChat {
   chatId: number;
 }
 
+const TELEGRAM_API_URL = 'https://functions.poehali.dev/45932f98-ca2f-4788-97f1-698148a33b67';
+
 const Index = () => {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClient, setSelectedClient] = useState<ClientWithChat | null>(null);
+  const [clients, setClients] = useState<ClientWithChat[]>([]);
+  const [isLoadingClients, setIsLoadingClients] = useState(true);
 
   const sidebarItems = [
     { id: 'dashboard', label: 'Дашборд', icon: 'LayoutDashboard' },
@@ -44,18 +48,58 @@ const Index = () => {
   ];
 
   const stats = [
-    { label: 'Всего клиентов', value: '1,248', change: '+12%', icon: 'Users', color: 'text-blue-600' },
+    { label: 'Всего клиентов', value: clients.length.toString(), change: '+12%', icon: 'Users', color: 'text-blue-600' },
     { label: 'Активные сделки', value: '86', change: '+8%', icon: 'TrendingUp', color: 'text-green-600' },
     { label: 'Выполнено задач', value: '342', change: '+24%', icon: 'CheckCircle2', color: 'text-purple-600' },
     { label: 'Подключено каналов', value: '14', change: '+2', icon: 'MessageSquare', color: 'text-orange-600' },
   ];
 
-  const clients: ClientWithChat[] = [
-    { id: 1, name: 'Александр Иванов', username: '@alex_ivanov', status: 'active', tags: ['VIP', 'Постоянный'], lastMessage: '2 часа назад', avatar: 'АИ', chatId: 123456789 },
-    { id: 2, name: 'Мария Петрова', username: '@maria_p', status: 'new', tags: ['Новый'], lastMessage: '5 минут назад', avatar: 'МП', chatId: 987654321 },
-    { id: 3, name: 'Дмитрий Смирнов', username: '@dmitry_s', status: 'active', tags: ['Постоянный'], lastMessage: '1 день назад', avatar: 'ДС', chatId: 456789123 },
-    { id: 4, name: 'Елена Козлова', username: '@elena_k', status: 'inactive', tags: ['Холодный'], lastMessage: '5 дней назад', avatar: 'ЕК', chatId: 321654987 },
-  ];
+  useEffect(() => {
+    const loadClients = async () => {
+      try {
+        const response = await fetch(`${TELEGRAM_API_URL}?action=getClients`);
+        const data = await response.json();
+        
+        if (data.clients) {
+          const formattedClients = data.clients.map((client: any) => ({
+            id: client.id,
+            name: client.first_name && client.last_name 
+              ? `${client.first_name} ${client.last_name}` 
+              : client.first_name || client.telegram_username || 'Клиент',
+            username: client.telegram_username ? `@${client.telegram_username}` : '',
+            avatar: (client.first_name || client.telegram_username || 'K').charAt(0).toUpperCase(),
+            chatId: client.telegram_chat_id,
+            status: client.status || 'active',
+            tags: [],
+            lastMessage: 'Недавно'
+          }));
+          setClients(formattedClients);
+        }
+      } catch (error) {
+        console.error('Error loading clients:', error);
+      } finally {
+        setIsLoadingClients(false);
+      }
+    };
+
+    loadClients();
+    const interval = setInterval(loadClients, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const syncMessages = async () => {
+      try {
+        await fetch(`${TELEGRAM_API_URL}?action=syncUpdates&offset=-1`);
+      } catch (error) {
+        console.error('Error syncing messages:', error);
+      }
+    };
+
+    syncMessages();
+    const interval = setInterval(syncMessages, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   const deals = [
     { id: 1, client: 'Александр Иванов', amount: '150,000 ₽', stage: 'Переговоры', probability: 75, channel: 'Telegram Premium' },
@@ -180,12 +224,12 @@ const Index = () => {
                       <div className="space-y-2">
                         <p className="text-sm text-muted-foreground">{stat.label}</p>
                         <p className="text-3xl font-bold">{stat.value}</p>
-                        <Badge variant="secondary" className="text-xs">
+                        <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
                           {stat.change}
                         </Badge>
                       </div>
-                      <div className={`p-3 rounded-lg bg-muted ${stat.color}`}>
-                        <Icon name={stat.icon} size={24} />
+                      <div className={`${stat.color}`}>
+                        <Icon name={stat.icon} size={32} />
                       </div>
                     </div>
                   </Card>
@@ -194,53 +238,53 @@ const Index = () => {
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card className="p-6">
-                  <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                    <Icon name="TrendingUp" size={20} />
-                    Активные сделки
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold">Последние сделки</h3>
+                    <Button variant="ghost" size="sm">
+                      Все сделки
+                      <Icon name="ArrowRight" size={16} className="ml-2" />
+                    </Button>
+                  </div>
                   <div className="space-y-4">
                     {deals.slice(0, 3).map((deal) => (
-                      <div key={deal.id} className="flex items-center justify-between p-4 bg-muted/50 rounded-lg hover:bg-muted transition-colors">
-                        <div className="flex-1">
+                      <div key={deal.id} className="flex items-center justify-between p-3 border border-border rounded-lg">
+                        <div>
                           <p className="font-medium">{deal.client}</p>
-                          <p className="text-sm text-muted-foreground">{deal.channel}</p>
+                          <p className="text-sm text-muted-foreground">{deal.stage}</p>
                         </div>
                         <div className="text-right">
-                          <p className="font-bold text-primary">{deal.amount}</p>
-                          <Badge variant="outline" className="mt-1">{deal.stage}</Badge>
+                          <p className="font-semibold">{deal.amount}</p>
+                          <p className="text-sm text-muted-foreground">{deal.probability}%</p>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <Button className="w-full mt-4" variant="outline">
-                    Посмотреть все сделки
-                  </Button>
                 </Card>
 
                 <Card className="p-6">
-                  <h3 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                    <Icon name="CheckSquare" size={20} />
-                    Задачи на сегодня
-                  </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold">Задачи на сегодня</h3>
+                    <Button variant="ghost" size="sm">
+                      Все задачи
+                      <Icon name="ArrowRight" size={16} className="ml-2" />
+                    </Button>
+                  </div>
                   <div className="space-y-3">
-                    {tasks.slice(0, 4).map((task) => (
-                      <div key={task.id} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors">
-                        <div className={`mt-1 w-2 h-2 rounded-full ${
-                          task.priority === 'high' ? 'bg-red-500' :
-                          task.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
-                        }`} />
-                        <div className="flex-1 min-w-0">
-                          <p className={`font-medium ${task.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}>
-                            {task.title}
-                          </p>
+                    {tasks.filter(t => t.dueDate.includes('Сегодня')).map((task) => (
+                      <div key={task.id} className="flex items-start gap-3 p-3 border border-border rounded-lg">
+                        <div className="mt-1">
+                          <div className={`w-2 h-2 rounded-full ${
+                            task.priority === 'high' ? 'bg-red-500' : 
+                            task.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+                          }`} />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium">{task.title}</p>
                           <p className="text-sm text-muted-foreground">{task.dueDate}</p>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <Button className="w-full mt-4" variant="outline">
-                    Все задачи
-                  </Button>
                 </Card>
               </div>
             </div>
@@ -250,64 +294,69 @@ const Index = () => {
             <div className="space-y-6 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-3xl font-bold mb-2">Клиенты</h2>
-                  <p className="text-muted-foreground">База контактов из Telegram</p>
+                  <h2 className="text-3xl font-bold">Клиенты</h2>
+                  <p className="text-muted-foreground">Управление базой клиентов</p>
                 </div>
-                <Button className="gap-2">
-                  <Icon name="Plus" size={20} />
+                <Button>
+                  <Icon name="Plus" size={20} className="mr-2" />
                   Добавить клиента
                 </Button>
               </div>
 
               <Card className="p-6">
-                <div className="flex gap-4 mb-6">
-                  <div className="flex-1">
-                    <Input placeholder="Поиск по имени или username..." />
-                  </div>
-                  <Select defaultValue="all">
-                    <SelectTrigger className="w-48">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Все клиенты</SelectItem>
-                      <SelectItem value="active">Активные</SelectItem>
-                      <SelectItem value="new">Новые</SelectItem>
-                      <SelectItem value="inactive">Неактивные</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-3">
-                  {clients.map((client) => (
-                    <div key={client.id} className="flex items-center gap-4 p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer">
-                      <Avatar className="h-12 w-12">
-                        <AvatarFallback className="bg-primary text-primary-foreground">{client.avatar}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold">{client.name}</p>
-                          <p className="text-sm text-muted-foreground">{client.username}</p>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          {client.tags.map((tag, i) => (
-                            <Badge key={i} variant="secondary" className="text-xs">{tag}</Badge>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-muted-foreground">{client.lastMessage}</p>
-                        <Badge variant={
-                          client.status === 'active' ? 'default' :
-                          client.status === 'new' ? 'secondary' : 'outline'
-                        } className="mt-1">
-                          {client.status === 'active' ? 'Активен' : client.status === 'new' ? 'Новый' : 'Неактивен'}
-                        </Badge>
-                      </div>
-                      <Button variant="ghost" size="icon" onClick={() => setSelectedClient(client)}>
-                        <Icon name="MessageSquare" size={20} />
+                <div className="space-y-4">
+                  {isLoadingClients ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Icon name="Loader2" size={48} className="animate-spin text-muted-foreground" />
+                    </div>
+                  ) : clients.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <Icon name="Users" size={64} className="text-muted-foreground mb-4" />
+                      <h3 className="text-xl font-semibold mb-2">Нет клиентов</h3>
+                      <p className="text-muted-foreground text-center mb-4">
+                        Напишите боту в Telegram (@srmtgbot),<br />
+                        и контакт появится здесь автоматически
+                      </p>
+                      <Button variant="outline" onClick={() => window.open('https://t.me/srmtgbot', '_blank')}>
+                        <Icon name="Send" size={20} className="mr-2" />
+                        Написать боту
                       </Button>
                     </div>
-                  ))}
+                  ) : (
+                    clients.filter(c => 
+                      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      c.username.toLowerCase().includes(searchQuery.toLowerCase())
+                    ).map((client) => (
+                      <div
+                        key={client.id}
+                        className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-4">
+                          <Avatar className="h-12 w-12">
+                            <AvatarFallback className="bg-primary text-primary-foreground">
+                              {client.avatar}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-semibold">{client.name}</p>
+                            <p className="text-sm text-muted-foreground">{client.username}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="bg-green-100 text-green-700">
+                            Активен
+                          </Badge>
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => setSelectedClient(client)}
+                          >
+                            <Icon name="MessageCircle" size={20} />
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </Card>
             </div>
@@ -317,44 +366,43 @@ const Index = () => {
             <div className="space-y-6 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-3xl font-bold mb-2">Сделки</h2>
-                  <p className="text-muted-foreground">Воронка продаж и активные сделки</p>
+                  <h2 className="text-3xl font-bold">Сделки</h2>
+                  <p className="text-muted-foreground">Отслеживайте прогресс ваших продаж</p>
                 </div>
-                <Button className="gap-2">
-                  <Icon name="Plus" size={20} />
-                  Создать сделку
+                <Button>
+                  <Icon name="Plus" size={20} className="mr-2" />
+                  Новая сделка
                 </Button>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-                {['Новая заявка', 'Переговоры', 'Согласование', 'Оплата'].map((stage, index) => (
-                  <Card key={stage} className="p-4">
-                    <h3 className="font-semibold mb-3 flex items-center justify-between">
-                      {stage}
-                      <Badge variant="secondary">{deals.filter(d => d.stage === stage).length}</Badge>
-                    </h3>
-                    <div className="space-y-3">
-                      {deals.filter(d => d.stage === stage).map((deal) => (
-                        <div key={deal.id} className="p-3 bg-muted/50 rounded-lg border border-border hover:shadow-md transition-shadow cursor-pointer">
-                          <p className="font-medium text-sm mb-1">{deal.client}</p>
-                          <p className="text-lg font-bold text-primary mb-2">{deal.amount}</p>
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between text-xs text-muted-foreground">
-                              <span>Вероятность</span>
-                              <span>{deal.probability}%</span>
-                            </div>
-                            <Progress value={deal.probability} className="h-1.5" />
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                            <Icon name="MessageSquare" size={12} />
-                            {deal.channel}
-                          </p>
+              <Card className="p-6">
+                <div className="space-y-4">
+                  {deals.map((deal) => (
+                    <div
+                      key={deal.id}
+                      className="p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <p className="font-semibold text-lg">{deal.client}</p>
+                          <p className="text-sm text-muted-foreground">{deal.channel}</p>
                         </div>
-                      ))}
+                        <div className="text-right">
+                          <p className="font-bold text-xl text-primary">{deal.amount}</p>
+                          <Badge variant="secondary">{deal.stage}</Badge>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Вероятность закрытия</span>
+                          <span className="font-medium">{deal.probability}%</span>
+                        </div>
+                        <Progress value={deal.probability} />
+                      </div>
                     </div>
-                  </Card>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </Card>
             </div>
           )}
 
@@ -362,149 +410,162 @@ const Index = () => {
             <div className="space-y-6 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-3xl font-bold mb-2">Задачи</h2>
-                  <p className="text-muted-foreground">Планирование и контроль выполнения</p>
+                  <h2 className="text-3xl font-bold">Задачи</h2>
+                  <p className="text-muted-foreground">Планируйте и отслеживайте выполнение задач</p>
                 </div>
-                <Button className="gap-2">
-                  <Icon name="Plus" size={20} />
-                  Новая задача
+                <Button>
+                  <Icon name="Plus" size={20} className="mr-2" />
+                  Создать задачу
                 </Button>
               </div>
 
-              <Tabs defaultValue="all" className="w-full">
-                <TabsList>
-                  <TabsTrigger value="all">Все задачи</TabsTrigger>
-                  <TabsTrigger value="pending">В работе</TabsTrigger>
-                  <TabsTrigger value="completed">Завершенные</TabsTrigger>
-                </TabsList>
+              <div className="flex gap-4">
+                <Select defaultValue="all">
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Фильтр" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Все задачи</SelectItem>
+                    <SelectItem value="pending">В ожидании</SelectItem>
+                    <SelectItem value="in_progress">В работе</SelectItem>
+                    <SelectItem value="completed">Завершенные</SelectItem>
+                  </SelectContent>
+                </Select>
 
-                <TabsContent value="all" className="mt-6">
-                  <Card className="p-6">
-                    <div className="space-y-3">
-                      {tasks.map((task) => (
-                        <div key={task.id} className="flex items-center gap-4 p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors">
-                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center cursor-pointer ${
-                            task.status === 'completed' ? 'bg-primary border-primary' : 'border-muted-foreground'
-                          }`}>
-                            {task.status === 'completed' && <Icon name="Check" size={12} className="text-primary-foreground" />}
+                <Select defaultValue="all">
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Приоритет" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Все</SelectItem>
+                    <SelectItem value="high">Высокий</SelectItem>
+                    <SelectItem value="medium">Средний</SelectItem>
+                    <SelectItem value="low">Низкий</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Card className="p-6">
+                <div className="space-y-4">
+                  {tasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="flex items-start gap-4 p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className={`w-3 h-3 rounded-full ${
+                          task.priority === 'high' ? 'bg-red-500' : 
+                          task.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+                        }`} />
+                        <div className="flex-1">
+                          <p className="font-medium">{task.title}</p>
+                          <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Icon name="Clock" size={14} />
+                              {task.dueDate}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Icon name="User" size={14} />
+                              {task.assignee}
+                            </span>
                           </div>
-                          <div className={`w-3 h-3 rounded-full ${
-                            task.priority === 'high' ? 'bg-red-500' :
-                            task.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
-                          }`} />
-                          <div className="flex-1">
-                            <p className={`font-medium ${task.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}>
-                              {task.title}
-                            </p>
-                            <div className="flex items-center gap-4 mt-1">
-                              <p className="text-sm text-muted-foreground flex items-center gap-1">
-                                <Icon name="Clock" size={14} />
-                                {task.dueDate}
-                              </p>
-                              <p className="text-sm text-muted-foreground flex items-center gap-1">
-                                <Icon name="User" size={14} />
-                                {task.assignee}
-                              </p>
-                            </div>
-                          </div>
-                          <Badge variant={
-                            task.status === 'completed' ? 'secondary' :
-                            task.status === 'in_progress' ? 'default' : 'outline'
-                          }>
-                            {task.status === 'completed' ? 'Завершено' :
-                             task.status === 'in_progress' ? 'В работе' : 'Ожидает'}
-                          </Badge>
-                          <Button variant="ghost" size="icon">
-                            <Icon name="MoreVertical" size={20} />
-                          </Button>
                         </div>
-                      ))}
+                      </div>
+                      <Badge variant={task.status === 'completed' ? 'default' : 'secondary'}>
+                        {task.status === 'completed' ? 'Выполнено' : 
+                         task.status === 'in_progress' ? 'В работе' : 'Ожидает'}
+                      </Badge>
                     </div>
-                  </Card>
-                </TabsContent>
-              </Tabs>
+                  ))}
+                </div>
+              </Card>
             </div>
           )}
 
           {activeTab === 'settings' && (
             <div className="space-y-6 animate-fade-in">
               <div>
-                <h2 className="text-3xl font-bold mb-2">Настройки</h2>
-                <p className="text-muted-foreground">Управление аккаунтами и интеграциями</p>
+                <h2 className="text-3xl font-bold">Настройки</h2>
+                <p className="text-muted-foreground">Управление системой и интеграциями</p>
               </div>
 
-              <Card className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h3 className="text-xl font-semibold">Telegram аккаунты</h3>
-                    <p className="text-sm text-muted-foreground mt-1">Подключенные каналы и чаты</p>
+              <div className="grid gap-6">
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold mb-4">Telegram интеграция</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+                      <div>
+                        <p className="font-medium">Статус подключения</p>
+                        <p className="text-sm text-muted-foreground">Telegram Bot API активен</p>
+                      </div>
+                      <Badge variant="secondary" className="bg-green-100 text-green-700">
+                        Подключено
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+                      <div>
+                        <p className="font-medium">Автосинхронизация</p>
+                        <p className="text-sm text-muted-foreground">Автоматическое сохранение новых контактов</p>
+                      </div>
+                      <Badge variant="secondary" className="bg-green-100 text-green-700">
+                        Включено
+                      </Badge>
+                    </div>
                   </div>
-                  <Button className="gap-2">
-                    <Icon name="Plus" size={20} />
-                    Добавить аккаунт
-                  </Button>
-                </div>
+                </Card>
 
-                <div className="space-y-3">
-                  {channels.map((channel) => (
-                    <div key={channel.id} className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                          channel.type === 'channel' ? 'bg-blue-100' : 'bg-green-100'
-                        }`}>
-                          <Icon name={channel.type === 'channel' ? 'Radio' : 'Users'} size={24} className={
-                            channel.type === 'channel' ? 'text-blue-600' : 'text-green-600'
-                          } />
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold mb-4">Каналы и группы</h3>
+                  <div className="space-y-3">
+                    {channels.map((channel) => (
+                      <div
+                        key={channel.id}
+                        className="flex items-center justify-between p-4 border border-border rounded-lg"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Icon name="Hash" size={20} className="text-muted-foreground" />
+                          <div>
+                            <p className="font-medium">{channel.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {channel.type === 'channel' 
+                                ? `${channel.subscribers} подписчиков`
+                                : `${(channel as any).members} участников`}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-semibold">{channel.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {channel.type === 'channel' 
-                              ? `${channel.subscribers?.toLocaleString()} подписчиков`
-                              : `${channel.members} участников`
-                            }
-                          </p>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="bg-green-100 text-green-700">
+                            Активен
+                          </Badge>
+                          <Button variant="ghost" size="icon">
+                            <Icon name="Settings" size={20} />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Badge variant="secondary" className="bg-green-100 text-green-700">
-                          Активен
-                        </Badge>
-                        <Button variant="ghost" size="icon">
-                          <Icon name="Settings" size={20} />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Card>
+                    ))}
+                  </div>
+                </Card>
 
-              <Card className="p-6">
-                <h3 className="text-xl font-semibold mb-4">Автоматизация</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                    <div>
-                      <p className="font-medium">Автоответчик сообщений</p>
-                      <p className="text-sm text-muted-foreground">Автоматические ответы на входящие сообщения</p>
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold mb-4">Автоматизация</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+                      <div>
+                        <p className="font-medium">Автоответчик</p>
+                        <p className="text-sm text-muted-foreground">Автоматические ответы на популярные вопросы</p>
+                      </div>
+                      <Button variant="outline">Настроить</Button>
                     </div>
-                    <Button variant="outline">Настроить</Button>
-                  </div>
-                  <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                    <div>
-                      <p className="font-medium">Роли и права доступа</p>
-                      <p className="text-sm text-muted-foreground">Управление доступом сотрудников к функциям</p>
+                    <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+                      <div>
+                        <p className="font-medium">Переадресация сообщений</p>
+                        <p className="text-sm text-muted-foreground">Автоматическое распределение диалогов между операторами</p>
+                      </div>
+                      <Button variant="outline">Настроить</Button>
                     </div>
-                    <Button variant="outline">Настроить</Button>
                   </div>
-                  <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                    <div>
-                      <p className="font-medium">Переадресация сообщений</p>
-                      <p className="text-sm text-muted-foreground">Автоматическое распределение диалогов между операторами</p>
-                    </div>
-                    <Button variant="outline">Настроить</Button>
-                  </div>
-                </div>
-              </Card>
+                </Card>
+              </div>
             </div>
           )}
         </ScrollArea>

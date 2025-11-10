@@ -1,12 +1,12 @@
 {
   "tests": [
     {
-      "name": "Get bot info",
+      "name": "Get clients list",
       "method": "GET",
-      "path": "/?action=getMe",
+      "path": "/?action=getClients",
       "expectedStatus": 200,
       "expectedBody": {
-        "ok": true
+        "clients": []
       },
       "bodyMatcher": "partial"
     },
@@ -15,7 +15,8 @@
       "method": "POST",
       "path": "/",
       "body": {
-        "action": "sendMessage"
+        "action": "sendMessage",
+        "text": "Test"
       },
       "expectedStatus": 400,
       "expectedBody": {
