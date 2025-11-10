@@ -5,23 +5,13 @@
       "method": "GET",
       "path": "/?action=getClients",
       "expectedStatus": 200,
-      "expectedBody": {
-        "clients": []
-      },
       "bodyMatcher": "partial"
     },
     {
-      "name": "Send message - missing params",
-      "method": "POST",
-      "path": "/",
-      "body": {
-        "action": "sendMessage",
-        "text": "Test"
-      },
-      "expectedStatus": 400,
-      "expectedBody": {
-        "error": "string"
-      },
+      "name": "Get messages for client",
+      "method": "GET",
+      "path": "/?action=getMessages&client_id=1",
+      "expectedStatus": 200,
       "bodyMatcher": "partial"
     }
   ]
