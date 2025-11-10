@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import ChatWindow from '@/components/ChatWindow';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,9 +19,21 @@ import { Progress } from '@/components/ui/progress';
 
 type TabType = 'dashboard' | 'clients' | 'deals' | 'tasks' | 'settings';
 
+interface ClientWithChat {
+  id: number;
+  name: string;
+  username: string;
+  status: string;
+  tags: string[];
+  lastMessage: string;
+  avatar: string;
+  chatId: number;
+}
+
 const Index = () => {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedClient, setSelectedClient] = useState<ClientWithChat | null>(null);
 
   const sidebarItems = [
     { id: 'dashboard', label: 'Дашборд', icon: 'LayoutDashboard' },
@@ -37,11 +50,11 @@ const Index = () => {
     { label: 'Подключено каналов', value: '14', change: '+2', icon: 'MessageSquare', color: 'text-orange-600' },
   ];
 
-  const clients = [
-    { id: 1, name: 'Александр Иванов', username: '@alex_ivanov', status: 'active', tags: ['VIP', 'Постоянный'], lastMessage: '2 часа назад', avatar: 'АИ' },
-    { id: 2, name: 'Мария Петрова', username: '@maria_p', status: 'new', tags: ['Новый'], lastMessage: '5 минут назад', avatar: 'МП' },
-    { id: 3, name: 'Дмитрий Смирнов', username: '@dmitry_s', status: 'active', tags: ['Постоянный'], lastMessage: '1 день назад', avatar: 'ДС' },
-    { id: 4, name: 'Елена Козлова', username: '@elena_k', status: 'inactive', tags: ['Холодный'], lastMessage: '5 дней назад', avatar: 'ЕК' },
+  const clients: ClientWithChat[] = [
+    { id: 1, name: 'Александр Иванов', username: '@alex_ivanov', status: 'active', tags: ['VIP', 'Постоянный'], lastMessage: '2 часа назад', avatar: 'АИ', chatId: 123456789 },
+    { id: 2, name: 'Мария Петрова', username: '@maria_p', status: 'new', tags: ['Новый'], lastMessage: '5 минут назад', avatar: 'МП', chatId: 987654321 },
+    { id: 3, name: 'Дмитрий Смирнов', username: '@dmitry_s', status: 'active', tags: ['Постоянный'], lastMessage: '1 день назад', avatar: 'ДС', chatId: 456789123 },
+    { id: 4, name: 'Елена Козлова', username: '@elena_k', status: 'inactive', tags: ['Холодный'], lastMessage: '5 дней назад', avatar: 'ЕК', chatId: 321654987 },
   ];
 
   const deals = [
@@ -66,7 +79,18 @@ const Index = () => {
   ];
 
   return (
-    <div className="flex h-screen bg-muted/30">
+    <>
+      {selectedClient && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-4xl h-[80vh]">
+            <ChatWindow
+              client={selectedClient}
+              onClose={() => setSelectedClient(null)}
+            />
+          </div>
+        </div>
+      )}
+      <div className="flex h-screen bg-muted/30">
       <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
         <div className="p-4 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
@@ -279,7 +303,7 @@ const Index = () => {
                           {client.status === 'active' ? 'Активен' : client.status === 'new' ? 'Новый' : 'Неактивен'}
                         </Badge>
                       </div>
-                      <Button variant="ghost" size="icon">
+                      <Button variant="ghost" size="icon" onClick={() => setSelectedClient(client)}>
                         <Icon name="MessageSquare" size={20} />
                       </Button>
                     </div>
@@ -486,6 +510,7 @@ const Index = () => {
         </ScrollArea>
       </main>
     </div>
+    </>
   );
 };
 

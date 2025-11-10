@@ -1,0 +1,27 @@
+{
+  "tests": [
+    {
+      "name": "Get bot info",
+      "method": "GET",
+      "path": "/?action=getMe",
+      "expectedStatus": 200,
+      "expectedBody": {
+        "ok": true
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Send message - missing params",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "action": "sendMessage"
+      },
+      "expectedStatus": 400,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
